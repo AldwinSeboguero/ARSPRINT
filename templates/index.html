@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PisoPrint Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        /* This removes the up/down arrows (spin-buttons) from the number input */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4 font-sans">
+
+    <div class="w-full max-w-md bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-800 overflow-hidden">
+        <div class="bg-gradient-to-br from-indigo-600 to-blue-700 p-6 text-center border-b border-white/5">
+            <h1 class="text-2xl font-black italic tracking-tighter uppercase text-white">PisoPrint</h1>
+            <p class="text-blue-100 text-[9px] uppercase font-bold tracking-widest opacity-70">Smart Kiosk Terminal</p>
+        </div>
+
+        <div class="p-8 space-y-8">
+            <form action="/upload" method="POST" enctype="multipart/form-data" id="uploadForm" class="space-y-8">
+                
+                <div class="space-y-3">
+                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest ml-1">1. Select Paper Size</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="paper_size" value="short" class="peer hidden" onchange="unlockUpload()">
+                            <div class="p-3 text-center rounded-2xl border border-slate-700 bg-slate-800/40 peer-checked:border-indigo-500 peer-checked:bg-indigo-500/20 transition-all">
+                                <span class="text-[11px] font-black block text-slate-300">SHORT</span>
+                                <span class="text-[8px] font-bold text-slate-500 block mt-1">₱2 / ₱5</span>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="paper_size" value="a4" class="peer hidden" onchange="unlockUpload()">
+                            <div class="p-3 text-center rounded-2xl border border-slate-700 bg-slate-800/40 peer-checked:border-indigo-500 peer-checked:bg-indigo-500/20 transition-all">
+                                <span class="text-[11px] font-black block text-slate-300">A4</span>
+                                <span class="text-[8px] font-bold text-slate-500 block mt-1">₱2.5 / ₱7</span>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="paper_size" value="long" class="peer hidden" onchange="unlockUpload()">
+                            <div class="p-3 text-center rounded-2xl border border-slate-700 bg-slate-800/40 peer-checked:border-indigo-500 peer-checked:bg-indigo-500/20 transition-all">
+                                <span class="text-[11px] font-black block text-slate-300">LONG</span>
+                                <span class="text-[8px] font-bold text-slate-500 block mt-1">₱3 / ₱10</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest ml-1">2. Number of Copies</p>
+                    <div class="flex items-center justify-between bg-slate-800/40 p-2 rounded-2xl border border-slate-700">
+                        <button type="button" onclick="updateCopies(-1)" class="w-12 h-12 flex items-center justify-center rounded-xl bg-slate-700 hover:bg-slate-600 active:scale-95 transition-all text-xl font-bold select-none">-</button>
+                        
+                        <div class="text-center">
+                            <input type="number" name="copies" id="copiesInput" value="1" min="1" max="99" class="bg-transparent text-2xl font-black text-center w-16 focus:outline-none cursor-default" readonly>
+                            <p class="text-[8px] text-slate-500 font-bold uppercase">Sets</p>
+                        </div>
+
+                        <button type="button" onclick="updateCopies(1)" class="w-12 h-12 flex items-center justify-center rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all text-xl font-bold select-none">+</button>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest ml-1">3. Document</p>
+                    <div class="relative">
+                        <input type="file" name="file" id="fileInput" accept=".pdf" class="hidden" onchange="this.form.submit()">
+                        <button type="button" id="uploadBtn" disabled onclick="document.getElementById('fileInput').click()" 
+                            class="w-full py-6 px-6 bg-slate-800/50 opacity-40 border-2 border-dashed border-slate-700 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all cursor-not-allowed">
+                            <span class="text-slate-400 font-semibold" id="fileLabel">Tap to Upload PDF</span>
+                            <span class="text-[9px] text-slate-500 italic">Select size first</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="resultsModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md {{ 'hidden' if not data.filename }}">
+        <div class="w-full max-w-sm bg-slate-900 rounded-[2.5rem] border border-slate-800 shadow-2xl p-8 space-y-6 relative">
+            <button onclick="window.location.href='/'" class="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" stroke-linecap="round"></path></svg>
+            </button>
+
+            <div class="text-center space-y-1">
+                <h2 class="text-xl font-black italic uppercase text-indigo-400">Insert Coins</h2>
+                <p class="text-[9px] text-slate-500 font-bold truncate max-w-[200px] mx-auto uppercase tracking-widest">{{ data.filename }}</p>
+                <span class="inline-block px-2 py-0.5 bg-indigo-500/20 text-indigo-400 text-[8px] font-bold rounded-md uppercase">Copies: {{ data.copies }}</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-800/50 p-4 rounded-2xl border border-slate-800 text-center">
+                    <p class="text-[8px] text-slate-500 font-bold uppercase">Total B&W</p>
+                    <p class="text-2xl font-bold">{{ data.bw_pages }}</p>
+                </div>
+                <div class="bg-slate-800/50 p-4 rounded-2xl border border-slate-800 text-center">
+                    <p class="text-[8px] text-slate-500 font-bold uppercase">Total Color</p>
+                    <p class="text-2xl font-bold text-pink-500">{{ data.color_pages }}</p>
+                </div>
+            </div>
+
+            <div class="bg-black/40 rounded-3xl p-6 text-center border border-slate-800">
+                <p class="text-[10px] text-slate-500 font-bold uppercase mb-1">Total Due</p>
+                <div class="text-5xl font-black italic text-white">₱<span id="due">{{ data.amount_needed }}</span></div>
+                <p class="text-[9px] text-indigo-400 font-bold mt-2 tracking-widest uppercase">{{ data.paper_size }} MODE</p>
+            </div>
+
+            <div class="bg-slate-950 rounded-3xl p-6 text-center border border-slate-700 shadow-inner">
+                <p class="text-[10px] text-slate-500 font-bold uppercase mb-1">Inserted</p>
+                <div class="text-6xl font-black text-emerald-500" id="inserted">₱{{ data.coins_inserted }}</div>
+                <div id="status" class="mt-4 inline-block px-4 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase border border-indigo-500/20 tracking-tighter">
+                    {{ data.status }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const uploadBtn = document.getElementById('uploadBtn');
+        const modal = document.getElementById('resultsModal');
+        const copiesInput = document.getElementById('copiesInput');
+
+        // Logic for custom buttons
+        function updateCopies(val) {
+            let current = parseInt(copiesInput.value);
+            let next = current + val;
+            if (next >= 1 && next <= 99) {
+                copiesInput.value = next;
+            }
+        }
+
+        function unlockUpload() {
+            uploadBtn.disabled = false;
+            uploadBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+            uploadBtn.classList.add('hover:bg-slate-800', 'border-indigo-500/50', 'bg-slate-800/80');
+            document.querySelector('#uploadBtn span:last-child').innerText = "Ready to Upload";
+        }
+
+        window.onload = () => {
+            const radios = document.querySelectorAll('input[name="paper_size"]');
+            radios.forEach(r => r.checked = false);
+            uploadBtn.disabled = true;
+            copiesInput.value = 1;
+        };
+
+        socket.on('balance_update', (d) => {
+            document.getElementById('inserted').innerText = `₱${d.coins_inserted}`;
+            document.getElementById('status').innerText = d.status;
+            if(d.amount_needed > 0) modal.classList.remove('hidden');
+        });
+
+        socket.on('status_update', (d) => {
+            document.getElementById('status').innerText = d.status;
+            if(d.status.includes("Success")) {
+                setTimeout(() => { window.location.href = '/'; }, 4000);
+            }
+        });
+    </script>
+</body>
+</html>
