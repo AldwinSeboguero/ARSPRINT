@@ -97,7 +97,7 @@ def trigger_print():
     threading.Thread(target=run).start()
 
 # --- HARDWARE ---
-GPIO.setboard(GPIO.H3)
+# GPIO.setboard(GPIO.H3)
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(Config.COIN_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
