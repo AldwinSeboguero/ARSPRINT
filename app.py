@@ -6,7 +6,7 @@ import shutil
 from flask import Flask, render_template, request, redirect, url_for
 from flask_socketio import SocketIO
 from werkzeug.utils import secure_filename
-import fitz  # PyMuPDF
+from pypdf import PdfReader  # Swapped from fitz to pypdf for Orange Pi One compatibility
 
 # --- HARDWARE MOCKING ---
 if platform.system() == "Darwin":
@@ -59,13 +59,28 @@ def reset_session():
         "coins_inserted": 0, "status": "Ready"
     })
 
+# --- LIGHTWEIGHT PDF ANALYSIS (Orange Pi Friendly) ---
 def analyze_pdf(path):
-    doc = fitz.open(path)
+    reader = PdfReader(path)
     bw, color = 0, 0
-    for page in doc:
-        if page.get_images() or "Color" in str(page.get_fonts()): color += 1
-        else: bw += 1
-    doc.close()
+    
+    for page in reader.pages:
+        is_color = False
+        
+        # Look inside the page structural objects for color markers
+        if "/Resources" in page:
+            resources = page["/Resources"]
+            res_str = str(resources)
+            
+            # Common markers that signal colored graphics/text elements or RGB/CMYK setups
+            if "/DeviceRGB" in res_str or "/ColorSpace" in res_str or "/CMYK" in res_str:
+                is_color = True
+                
+        if is_color:
+            color += 1
+        else:
+            bw += 1
+            
     return bw, color
 
 def trigger_print():
